@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Linq;
 
 namespace minimap.rts.twod
 {
@@ -23,12 +24,18 @@ namespace minimap.rts.twod
 
         public CoordinateSystem WorldmapSystem;
 
+        public Dictionary<string, MinimapCornerMarker> MapCorners = new Dictionary<string, MinimapCornerMarker>();
 
 
         [AutoAssign]
         public RectTransform MinimapPanelTransform;
 
+        [AutoAssign]
+        public Camera MinimapCamera;
+        [Slider(0.4f, 1.0f)]
+        public float ZoomDelta = 1.0f;
         public List<MinimapObject> ObjectList = new List<MinimapObject>();
+
 
         void Awake()
         {
@@ -81,6 +88,10 @@ namespace minimap.rts.twod
                 LLMarker.SetParent(MinimapPanelTransform);
                 LLMarker.GetComponent<Text>().text = "LL";
             }
+            if (MinimapCamera == null)
+            {
+                MinimapCamera = GameObject.FindWithTag("MinimapCamera").GetComponentInChildren<Camera>();
+            }
             if (UnitIcons.Aircraft == null)
             {
                 UnitIcons.Aircraft = UnitIcons.GroundUnit;
@@ -88,6 +99,68 @@ namespace minimap.rts.twod
             if (UnitIcons.Ship == null)
             {
                 UnitIcons.Ship = UnitIcons.GroundUnit;
+            }
+        }
+
+        void Start()
+        {
+            //calculate the distances between all the corner points and get the size for the camera
+            MinimapCamera.orthographicSize = getOptimalOrthographicCameraSize();
+        }
+
+        private float getOptimalOrthographicCameraSize() {
+            float summ = 0f;
+            float xMin = -1f;
+            float xMax = 1f;
+            float yMin = -1f;
+            float yMax = 1f;
+
+            if(MapCorners.Count <= 0)
+            {
+                Debug.LogError(this.ToString() + "You forgot to place some GameObjects holding 'MinimapCornerMarker.cs' for the perfect quadratic minimap size!");
+                return 17f;
+            }
+
+            foreach (KeyValuePair<string, MinimapCornerMarker> item in MapCorners)
+            {
+                Transform tempTrans = item.Value.transform;
+                xMin = checkDimension(xMin, tempTrans.GetPositionX(), false);
+                xMax = checkDimension(xMax, tempTrans.GetPositionX(), true);
+                yMin = checkDimension(yMin, tempTrans.GetPositionY(), false);
+                yMax = checkDimension(yMax, tempTrans.GetPositionY(), true);
+            }
+
+            float distanceX = Vector2.Distance(new Vector2(xMin, 0), new Vector2(xMax, 0));
+            float distanceY = Vector2.Distance(new Vector2(0, yMin), new Vector2(0, yMax));
+
+            float biggestDistance = checkDimension(distanceX, distanceY, true);
+
+            return biggestDistance * 0.50f;
+        }
+
+        private float checkDimension(float _Value, float _NewValue, bool _ReturnTheHigherOne) {
+            //should only return distance of on dimension o
+            if (_ReturnTheHigherOne)
+            {
+                if(_NewValue > _Value)
+                {
+                    return _NewValue;
+                }
+                else
+                {
+                    return _Value;
+                }
+            }
+            else
+            {
+                if (_NewValue < _Value)
+                {
+                    return _NewValue;
+                }
+                else
+                {
+                    return _Value;
+                }
             }
         }
 
@@ -112,6 +185,16 @@ namespace minimap.rts.twod
             Gizmos.DrawSphere(WorldmapSystem.LR, GizmoSize);
             Gizmos.DrawSphere(WorldmapSystem.LL, GizmoSize);
             Gizmos.color = saved;
+        }
+
+        public void addCorner(string _UniqueID, MinimapCornerMarker _Marker)
+        {
+            MapCorners.Add(_UniqueID, _Marker);
+        }
+
+        public void removeCorner(string _UniqueID)
+        {
+            MapCorners.Remove(_UniqueID);
         }
 
         public Vector2 calculatePosition(Vector3 realWorldPosition)

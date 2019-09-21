@@ -135,8 +135,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -10, y: -10}
-  m_SizeDelta: {x: 256, y: 256}
+  m_AnchoredPosition: {x: -4, y: -4}
+  m_SizeDelta: {x: 386, y: 386}
   m_Pivot: {x: 1, y: 1}
 --- !u!222 &5485246831522374392
 CanvasRenderer:
@@ -159,7 +159,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 0.392}
+  m_Color: {r: 0.6415094, g: 0.51829094, b: 0.29352084, a: 1}
   m_RaycastTarget: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
@@ -222,10 +222,10 @@ RectTransform:
   m_Father: {fileID: 5485246831522374394}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 1, y: 1}
-  m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -8, y: -8}
-  m_SizeDelta: {x: 240, y: 240}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 190, y: 190}
+  m_SizeDelta: {x: 380, y: 380}
   m_Pivot: {x: 1, y: 1}
 --- !u!222 &5485246831826055691
 CanvasRenderer:
@@ -291,4 +291,6 @@ MonoBehaviour:
     LR: {x: 50, y: -50}
     LL: {x: -50, y: -50}
   MinimapPanelTransform: {fileID: 0}
+  MinimapCamera: {fileID: 0}
+  ZoomDelta: 1
   ObjectList: []

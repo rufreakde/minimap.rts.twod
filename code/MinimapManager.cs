@@ -23,7 +23,6 @@ namespace minimap.rts.twod
         [AutoAssign]
         public Minimap Minimap;
 
-
         public void iInitialize()
         {
             EventSystem = CheckScriptAvailability<EventSystem>("EventSystem", DefaultEventSystemPrefab);
