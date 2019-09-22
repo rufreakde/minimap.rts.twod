@@ -106,10 +106,10 @@ namespace minimap.rts.twod
         {
             //calculate the distances between all the corner points and get the size for the camera
             MinimapCamera.orthographicSize = getOptimalOrthographicCameraSize();
+            MinimapCamera.transform.position = calculatePseudoCentroid(MapCorners.Values.ToList().ToArray());
         }
 
         private float getOptimalOrthographicCameraSize() {
-            float summ = 0f;
             float xMin = -1f;
             float xMax = 1f;
             float yMin = -1f;
@@ -136,6 +136,28 @@ namespace minimap.rts.twod
             float biggestDistance = checkDimension(distanceX, distanceY, true);
 
             return biggestDistance * 0.50f;
+        }
+
+        public Vector3 calculatePseudoCentroid(MinimapCornerMarker[] points)
+        {
+            float xMin = -1f;
+            float xMax = 1f;
+            float yMin = -1f;
+            float yMax = 1f;
+
+            foreach (KeyValuePair<string, MinimapCornerMarker> item in MapCorners)
+            {
+                Transform tempTrans = item.Value.transform;
+                xMin = checkDimension(xMin, tempTrans.GetPositionX(), false);
+                xMax = checkDimension(xMax, tempTrans.GetPositionX(), true);
+                yMin = checkDimension(yMin, tempTrans.GetPositionY(), false);
+                yMax = checkDimension(yMax, tempTrans.GetPositionY(), true);
+            }
+
+            float distanceX = Vector2.Distance(new Vector2(xMin, 0), new Vector2(xMax, 0));
+            float distanceY = Vector2.Distance(new Vector2(0, yMin), new Vector2(0, yMax));
+
+            return new Vector3(xMin + (distanceX * 0.5f), yMin + (distanceY * 0.5f), MinimapCamera.transform.position.z);
         }
 
         private float checkDimension(float _Value, float _NewValue, bool _ReturnTheHigherOne) {
