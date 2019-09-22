@@ -8,33 +8,29 @@ namespace minimap.rts.twod
 {
     public class Minimap : MonoBehaviour
     {
-        public float GizmoSize = 4f;
         public Icons UnitIcons;
-
-        protected CoordinateSystem MinimapSystem = new CoordinateSystem();
-
-        [Mandatory]
-        public GameObject MinimapDebugMarker = null;
-
-        protected RectTransform ULMarker = null;
-        protected RectTransform URMarker = null;
-        protected RectTransform LRMarker = null;
-        protected RectTransform LLMarker = null;
-
-
-        public CoordinateSystem WorldmapSystem;
-
-        public Dictionary<string, MinimapCornerMarker> MapCorners = new Dictionary<string, MinimapCornerMarker>();
-
-
         [AutoAssign]
         public RectTransform MinimapPanelTransform;
 
         [AutoAssign]
         public Camera MinimapCamera;
+        [AutoAssign]
+        public Camera MainCamera;
+        [Mandatory]
+        public Material LineRendererMaterial;
+        private Transform MainCameraTransform;
         [Slider(0.4f, 1.0f)]
+        [SimpleButton("UpdateMinimapCamera", typeof(Minimap))]
         public float ZoomDelta = 1.0f;
-        public List<MinimapObject> ObjectList = new List<MinimapObject>();
+
+        public Dictionary<string, MinimapCornerMarker> MapCorners = new Dictionary<string, MinimapCornerMarker>();
+        protected CoordinateSystem MinimapSystem = new CoordinateSystem();
+        public CoordinateSystem WorldSystem = new CoordinateSystem();
+
+        private LineRenderer MiniMapViewRenderer;
+        private Vector3[] ViewRenderCorners = new Vector3[4];
+        private RectTransform minimapRectTrans;
+
 
 
         void Awake()
@@ -60,33 +56,10 @@ namespace minimap.rts.twod
                 }
 
                 MinimapPanelTransform = ScriptHolder.GetComponent<RectTransform>();
-
-                //TODO mark the corners for calculation
-
-                //TODO mark the WORLDMAP points on the minimap
-
-                //TODO calculate all the objects in the list to show them on the Minimap
-
-                //init Minimap
-                MinimapSystem.UL = new Vector2(MinimapPanelTransform.rect.x, MinimapPanelTransform.rect.y + MinimapPanelTransform.rect.height);
-                ULMarker = Instantiate(MinimapDebugMarker).GetComponent<RectTransform>();
-                ULMarker.SetParent(MinimapPanelTransform);
-                ULMarker.GetComponent<Text>().text = "UL";
-
-                MinimapSystem.UR = new Vector2(MinimapPanelTransform.rect.x + MinimapPanelTransform.rect.width, MinimapPanelTransform.rect.y + MinimapPanelTransform.rect.height);
-                URMarker = Instantiate(MinimapDebugMarker).GetComponent<RectTransform>();
-                URMarker.SetParent(MinimapPanelTransform);
-                URMarker.GetComponent<Text>().text = "UR";
-
-                MinimapSystem.LR = new Vector2(MinimapPanelTransform.rect.x + MinimapPanelTransform.rect.width, MinimapPanelTransform.rect.y);
-                LRMarker = Instantiate(MinimapDebugMarker).GetComponent<RectTransform>();
-                LRMarker.SetParent(MinimapPanelTransform);
-                LRMarker.GetComponent<Text>().text = "LR";
-
-                MinimapSystem.LL = new Vector2(MinimapPanelTransform.rect.x, MinimapPanelTransform.rect.y);
-                LLMarker = Instantiate(MinimapDebugMarker).GetComponent<RectTransform>();
-                LLMarker.SetParent(MinimapPanelTransform);
-                LLMarker.GetComponent<Text>().text = "LL";
+            }
+            if (MainCamera == null)
+            {
+                MainCamera = GameObject.FindWithTag("MainCamera").GetComponentInChildren<Camera>();
             }
             if (MinimapCamera == null)
             {
@@ -100,13 +73,25 @@ namespace minimap.rts.twod
             {
                 UnitIcons.Ship = UnitIcons.GroundUnit;
             }
+            if (MainCameraTransform == null)
+            {
+                MainCameraTransform = MainCamera.transform;
+            }
+            if(MiniMapViewRenderer == null)
+            {
+                MiniMapViewRenderer = this.gameObject.AddComponent<LineRenderer>();
+            }
+            if (minimapRectTrans == null)
+            {
+                minimapRectTrans = this.transform.GetComponent<RectTransform>();
+            }
         }
 
         void Start()
         {
             //calculate the distances between all the corner points and get the size for the camera
-            MinimapCamera.orthographicSize = getOptimalOrthographicCameraSize();
-            MinimapCamera.transform.position = calculatePseudoCentroid(MapCorners.Values.ToList().ToArray());
+            UpdateMinimapCamera();
+            SetupViewLineRenderer();
         }
 
         private float getOptimalOrthographicCameraSize() {
@@ -117,7 +102,7 @@ namespace minimap.rts.twod
 
             if(MapCorners.Count <= 0)
             {
-                Debug.LogError(this.ToString() + "You forgot to place some GameObjects holding 'MinimapCornerMarker.cs' for the perfect quadratic minimap size!");
+                Debug.LogError(this.ToString() + "You forgot to place some GameObjects holding 'MinimapCornerMarker.cs'. Need 2 at least!");
                 return 17f;
             }
 
@@ -186,27 +171,72 @@ namespace minimap.rts.twod
             }
         }
 
-        void LateUpdate()
+        void Update()
         {
-            ULMarker.anchoredPosition = MinimapSystem.UL;
-            //Debug.Log(MinimapSystem.UL);
-            URMarker.anchoredPosition = MinimapSystem.UR;
-            //Debug.Log(MinimapSystem.UR);
-            LRMarker.anchoredPosition = MinimapSystem.LR;
-            //Debug.Log(MinimapSystem.LR);
-            LLMarker.anchoredPosition = MinimapSystem.LL;
-            //Debug.Log(MinimapSystem.LL);
+            UpdateMainCameraView();
         }
 
-        void OnDrawGizmos()
+        void SetupViewLineRenderer()
         {
-            Color saved = Gizmos.color;
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawSphere(WorldmapSystem.UL, GizmoSize);
-            Gizmos.DrawSphere(WorldmapSystem.UR, GizmoSize);
-            Gizmos.DrawSphere(WorldmapSystem.LR, GizmoSize);
-            Gizmos.DrawSphere(WorldmapSystem.LL, GizmoSize);
-            Gizmos.color = saved;
+            MiniMapViewRenderer.sortingLayerName = "OnTop";
+            MiniMapViewRenderer.sortingOrder = 5;
+            MiniMapViewRenderer.positionCount = 4;
+
+            for( int i =0; i< ViewRenderCorners.Length; i++)
+            {
+                MiniMapViewRenderer.SetPosition(i, ViewRenderCorners[i]);
+            }
+
+            MiniMapViewRenderer.startWidth = 1f;
+            MiniMapViewRenderer.endWidth = 1f;
+            MiniMapViewRenderer.useWorldSpace = false;
+            MiniMapViewRenderer.loop = true;
+            MiniMapViewRenderer.materials[0] = LineRendererMaterial;
+            MiniMapViewRenderer.materials[0].color = new Color(1,1,1,1);
+            MiniMapViewRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        void UpdateMainCameraView()
+        {
+            // TODO okey it is to late atm dnk what I do here ... well lets calculate positions from real later...
+            float widthPercentage = (minimapRectTrans.rect.width * 100) / minimapRectTrans.rect.width;
+            float heightPercentage = (minimapRectTrans.rect.height * 100) / minimapRectTrans.rect.height;
+
+            float widthReal = (minimapRectTrans.rect.width * 100) / minimapRectTrans.rect.width;
+            float heightReal = (minimapRectTrans.rect.height * 100) / minimapRectTrans.rect.height;
+
+            ViewRenderCorners[0] = new Vector3(minimapRectTrans.rect.xMin, minimapRectTrans.rect.yMax, -10);
+            ViewRenderCorners[1] = new Vector3(minimapRectTrans.rect.xMax, minimapRectTrans.rect.yMax, -10);
+            ViewRenderCorners[2] = new Vector3(minimapRectTrans.rect.xMax, minimapRectTrans.rect.yMin, -10);
+            ViewRenderCorners[3] = new Vector3(minimapRectTrans.rect.xMin, minimapRectTrans.rect.yMin, -10);
+
+            for (int i = 0; i < ViewRenderCorners.Length; i++)
+            {
+                Debug.Log(ViewRenderCorners[i]);
+                MiniMapViewRenderer.SetPosition(i, ViewRenderCorners[i]);
+            }
+        }
+
+        void OnDrawGizmosSelected()
+        {
+            Gizmos.DrawWireSphere(WorldSystem.UL, 1f);
+            Gizmos.DrawWireSphere(WorldSystem.UR, 1f);
+            Gizmos.DrawWireSphere(WorldSystem.LR, 1f);
+            Gizmos.DrawWireSphere(WorldSystem.LL, 1f);
+        }
+
+        public void UpdateMinimapCamera() {
+            MinimapCamera.orthographicSize = getOptimalOrthographicCameraSize();
+            MinimapCamera.transform.position = calculatePseudoCentroid(MapCorners.Values.ToList().ToArray());
+            UpdateWorldCoordinates(MinimapCamera.orthographicSize, MinimapCamera.transform.position);
+        }
+
+        public void UpdateWorldCoordinates(float _CameraSize, Vector3 _CameraPosition)
+        {
+            WorldSystem.UL = new Vector2(_CameraPosition.x - _CameraSize, _CameraPosition.y + _CameraSize);
+            WorldSystem.UR = new Vector2(_CameraPosition.x + _CameraSize, _CameraPosition.y + _CameraSize);
+            WorldSystem.LR = new Vector2(_CameraPosition.x + _CameraSize, _CameraPosition.y - _CameraSize);
+            WorldSystem.LL = new Vector2(_CameraPosition.x - _CameraSize, _CameraPosition.y - _CameraSize);
         }
 
         public void addCorner(string _UniqueID, MinimapCornerMarker _Marker)
@@ -260,6 +290,18 @@ namespace minimap.rts.twod
             public Vector2 UR = new Vector2(50, 50);
             public Vector2 LR = new Vector2(50, -50);
             public Vector2 LL = new Vector2(-50, -50);
+
+            public CoordinateSystem()
+            {
+
+            }
+            public CoordinateSystem(Vector2 _UL, Vector2 _UR, Vector2 _LR, Vector2 _LL)
+            {
+                this.UL = _UL;
+                this.UR = _UR;
+                this.LR = _LR;
+                this.LL = _LL;
+            }
         }
 
         [System.Serializable]

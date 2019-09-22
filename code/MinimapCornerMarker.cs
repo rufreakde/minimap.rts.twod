@@ -11,8 +11,7 @@ namespace minimap.rts.twod
         protected int StartPositionIndex = 0;
         
         [SimpleButton("InsertCurrentPositionAtFront", typeof(MinimapCornerMarker))]
-        [SimpleButton("triggerPositionNext", typeof(MinimapCornerMarker))]
-        [SimpleButton("triggerPositionPrevious", typeof(MinimapCornerMarker))]
+        [SimpleButton("InsertCurrentPositionAtBack", typeof(MinimapCornerMarker))]
         [InfoBox("The current 'transform.position' will be inserted automatically 'NextPositionsOverTime' is empty!")]
         public List<Vector2> NextPositionsOverTime;
 
@@ -45,6 +44,7 @@ namespace minimap.rts.twod
             {
                 StartPositionIndex = _PositionArrayIndex;
                 this.transform.position = NextPositionsOverTime[StartPositionIndex];
+                MinimapScript.UpdateMinimapCamera();
             } else {
                 Debug.LogError(this.ToString() + " You tried to set a higher position index than there is available on GO: " + this.gameObject.name);
             }
@@ -52,6 +52,11 @@ namespace minimap.rts.twod
         public void InsertCurrentPositionAtFront()
         {
             NextPositionsOverTime.Insert(0, this.transform.position);
+        }
+
+        public void InsertCurrentPositionAtBack()
+        {
+            NextPositionsOverTime.Add( this.transform.position);
         }
 
         public void triggerPositionNext() {
