@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using System.Linq;
+using UnityEditor;
 
 namespace minimap.rts.twod
 {
@@ -30,7 +31,7 @@ namespace minimap.rts.twod
         private LineRenderer MiniMapViewRenderer;
         private Vector3[] ViewRenderCorners = new Vector3[4];
         private RectTransform minimapRectTrans;
-
+        private Bounds MainCameraBounds = new Bounds();
 
 
         void Awake()
@@ -196,14 +197,24 @@ namespace minimap.rts.twod
             MiniMapViewRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
+
+
         void UpdateMainCameraView()
         {
             // TODO okey it is to late atm dnk what I do here ... well lets calculate positions from real later...
-            float widthPercentage = (minimapRectTrans.rect.width * 100) / minimapRectTrans.rect.width;
-            float heightPercentage = (minimapRectTrans.rect.height * 100) / minimapRectTrans.rect.height;
+            MainCameraBounds = MainCamera.OrthographicBounds();
+            WorldSystem.recalculateSize();
 
-            float widthReal = (minimapRectTrans.rect.width * 100) / minimapRectTrans.rect.width;
-            float heightReal = (minimapRectTrans.rect.height * 100) / minimapRectTrans.rect.height;
+            float xWorldPercentageMin = (Vector2.Distance(new Vector2(MainCameraBounds.min.x, 0), new Vector2(WorldSystem.LL.x, 0))) / WorldSystem.UR.x;
+            float yWorldPercentageMin = (Vector2.Distance(new Vector2(MainCameraBounds.min.y, 0), new Vector2(WorldSystem.LL.y, 0))) / WorldSystem.UR.y;
+
+            float xWorldPercentageMax = (Vector2.Distance(new Vector2(MainCameraBounds.max.x, 0), new Vector2(WorldSystem.UR.x, 0))) / WorldSystem.LR.x;
+            float yWorldPercentageMax = (Vector2.Distance(new Vector2(MainCameraBounds.max.y, 0), new Vector2(WorldSystem.UR.y, 0))) / WorldSystem.LR.y;
+
+            Debug.Log(xWorldPercentageMin);
+            Debug.Log(yWorldPercentageMin);
+            Debug.Log(xWorldPercentageMax);
+            Debug.Log(yWorldPercentageMax);
 
             ViewRenderCorners[0] = new Vector3(minimapRectTrans.rect.xMin, minimapRectTrans.rect.yMax, -10);
             ViewRenderCorners[1] = new Vector3(minimapRectTrans.rect.xMax, minimapRectTrans.rect.yMax, -10);
@@ -212,17 +223,47 @@ namespace minimap.rts.twod
 
             for (int i = 0; i < ViewRenderCorners.Length; i++)
             {
-                Debug.Log(ViewRenderCorners[i]);
                 MiniMapViewRenderer.SetPosition(i, ViewRenderCorners[i]);
             }
         }
 
-        void OnDrawGizmosSelected()
+        void OnDrawGizmos()
         {
+            float leftMargin = Vector2.Distance(new Vector2(MainCameraBounds.min.x, 0), new Vector2(WorldSystem.LL.x, 0));
+            float xWorldPercentageMin = leftMargin / WorldSystem.width;
+            float bottomMargin = Vector2.Distance(new Vector2(MainCameraBounds.min.y, 0), new Vector2(WorldSystem.LL.y, 0));
+            float yWorldPercentageMin = bottomMargin / WorldSystem.height;
+
+            float rightMargin = Vector2.Distance(new Vector2(MainCameraBounds.max.x, 0), new Vector2(WorldSystem.UR.x, 0));
+            float xWorldPercentageMax = rightMargin / WorldSystem.width;
+            float topMargin = Vector2.Distance(new Vector2(MainCameraBounds.max.y, 0), new Vector2(WorldSystem.UR.y, 0));
+            float yWorldPercentageMax = topMargin / WorldSystem.height;
+
+            Handles.Label(MainCameraBounds.center + (Vector3.left * 10f), "(" + xWorldPercentageMin + "/" + leftMargin + ")");
+            Handles.Label(MainCameraBounds.center + (Vector3.down * 5f), "(" + yWorldPercentageMin + "/" + bottomMargin + ")");
+            Handles.Label(MainCameraBounds.center + (Vector3.right * 10f), "(" + xWorldPercentageMax + "/" + rightMargin + ")");
+            Handles.Label(MainCameraBounds.center + (Vector3.up * 5f ), "(" + yWorldPercentageMax + "/" + topMargin + ")");
+
+            Handles.Label(WorldSystem.UL, "(" + WorldSystem.UL.x + "," + WorldSystem.UL.y + ")");
             Gizmos.DrawWireSphere(WorldSystem.UL, 1f);
+            Handles.Label(WorldSystem.UR, "(" + WorldSystem.UR.x + "," + WorldSystem.UR.y + ")");
             Gizmos.DrawWireSphere(WorldSystem.UR, 1f);
+            Handles.Label(WorldSystem.LR, "(" + WorldSystem.LR.x + "," + WorldSystem.LR.y + ")");
             Gizmos.DrawWireSphere(WorldSystem.LR, 1f);
+            Handles.Label(WorldSystem.LL, "(" + WorldSystem.LL.x + "," + WorldSystem.LL.y + ")");
             Gizmos.DrawWireSphere(WorldSystem.LL, 1f);
+
+            Handles.Label(WorldSystem.LL + (Vector2.left * 10f), "(" + WorldSystem.height + ")");
+            Handles.Label(WorldSystem.LL + (Vector2.down * 10f), "(" + WorldSystem.width + ")");
+            Handles.Label(WorldSystem.UR + (Vector2.right * 10f), "(" + WorldSystem.height + ")");
+            Handles.Label(WorldSystem.UR + (Vector2.up * 10f), "(" + WorldSystem.width + ")");
+
+            Handles.Label(MainCameraBounds.min, "(" + MainCameraBounds.min.x + "," + MainCameraBounds.min.y + ")");
+            Gizmos.DrawWireSphere(MainCameraBounds.min, 1f);
+            Handles.Label(MainCameraBounds.center, "(" + MainCameraBounds.center.x + "," + MainCameraBounds.center.y + ")");
+            Gizmos.DrawWireSphere(MainCameraBounds.center, 1f);
+            Handles.Label(MainCameraBounds.max, "(" + MainCameraBounds.max.x + "," + MainCameraBounds.max.y + ")");
+            Gizmos.DrawWireSphere(MainCameraBounds.max, 1f);
         }
 
         public void UpdateMinimapCamera() {
@@ -291,9 +332,12 @@ namespace minimap.rts.twod
             public Vector2 LR = new Vector2(50, -50);
             public Vector2 LL = new Vector2(-50, -50);
 
+            public float height = 0f;
+            public float width = 0f;
+
             public CoordinateSystem()
             {
-
+                recalculateSize();
             }
             public CoordinateSystem(Vector2 _UL, Vector2 _UR, Vector2 _LR, Vector2 _LL)
             {
@@ -301,6 +345,13 @@ namespace minimap.rts.twod
                 this.UR = _UR;
                 this.LR = _LR;
                 this.LL = _LL;
+
+                recalculateSize();
+            }
+
+            public void recalculateSize() {
+                this.width = Vector2.Distance(new Vector2(this.UL.x, 0), new Vector2(this.UR.x, 0));
+                this.height = Vector2.Distance(new Vector2(this.UL.y, 0), new Vector2(this.LL.y, 0));
             }
         }
 
