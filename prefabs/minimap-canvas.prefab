@@ -123,10 +123,10 @@ Canvas:
   m_GameObject: {fileID: 5485246830132431589}
   m_Enabled: 1
   serializedVersion: 3
-  m_RenderMode: 0
+  m_RenderMode: 1
   m_Camera: {fileID: 0}
-  m_PlaneDistance: 100
-  m_PixelPerfect: 1
+  m_PlaneDistance: 1
+  m_PixelPerfect: 0
   m_ReceivesEvents: 1
   m_OverrideSorting: 0
   m_OverridePixelPerfect: 0
@@ -271,10 +271,11 @@ MonoBehaviour:
   MinimapPanelTransform: {fileID: 5485246830132431609}
   MinimapCamera: {fileID: 0}
   MainCamera: {fileID: 0}
-  LineRendererMaterial: {fileID: 10306, guid: 0000000000000000f000000000000000, type: 0}
   ZoomDelta: 1
   WorldSystem:
     UL: {x: -50, y: 0}
     UR: {x: 50, y: 50}
     LR: {x: 50, y: -50}
     LL: {x: -50, y: -50}
+    height: 50
+    width: 100

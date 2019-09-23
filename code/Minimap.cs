@@ -17,8 +17,7 @@ namespace minimap.rts.twod
         public Camera MinimapCamera;
         [AutoAssign]
         public Camera MainCamera;
-        [Mandatory]
-        public Material LineRendererMaterial;
+        public bool ClampMainCameraToWorld = true;
         private Transform MainCameraTransform;
         [Slider(0.4f, 1.0f)]
         [SimpleButton("UpdateMinimapCamera", typeof(Minimap))]
@@ -32,6 +31,15 @@ namespace minimap.rts.twod
         private Vector3[] ViewRenderCorners = new Vector3[4];
         private RectTransform minimapRectTrans;
         private Bounds MainCameraBounds = new Bounds();
+
+        private float leftMargin;
+        private float xWorldPercentageMin;
+        private float bottomMargin;
+        private float yWorldPercentageMin;
+        private float rightMargin;
+        private float xWorldPercentageMax;
+        private float topMargin;
+        private float yWorldPercentageMax;
 
 
         void Awake()
@@ -61,6 +69,8 @@ namespace minimap.rts.twod
             if (MainCamera == null)
             {
                 MainCamera = GameObject.FindWithTag("MainCamera").GetComponentInChildren<Camera>();
+                Canvas MiniMapCanvas = this.GetComponentInParent<Canvas>();
+                MiniMapCanvas.worldCamera = MainCamera;
             }
             if (MinimapCamera == null)
             {
@@ -175,12 +185,18 @@ namespace minimap.rts.twod
         void Update()
         {
             UpdateMainCameraView();
+            OptionalMainCameraClamping();
+        }
+
+        private void LateUpdate()
+        {
+            OptionalMainCameraClamping();
         }
 
         void SetupViewLineRenderer()
         {
             MiniMapViewRenderer.sortingLayerName = "OnTop";
-            MiniMapViewRenderer.sortingOrder = 5;
+            MiniMapViewRenderer.sortingOrder = 20;
             MiniMapViewRenderer.positionCount = 4;
 
             for( int i =0; i< ViewRenderCorners.Length; i++)
@@ -188,16 +204,26 @@ namespace minimap.rts.twod
                 MiniMapViewRenderer.SetPosition(i, ViewRenderCorners[i]);
             }
 
-            MiniMapViewRenderer.startWidth = 1f;
-            MiniMapViewRenderer.endWidth = 1f;
+            MiniMapViewRenderer.numCapVertices = 1;
+            MiniMapViewRenderer.numCornerVertices = 1;
+            MiniMapViewRenderer.startWidth = 0.040000000000000000000000000f;
+            MiniMapViewRenderer.endWidth = 0.040000000000000000000000000f;
             MiniMapViewRenderer.useWorldSpace = false;
             MiniMapViewRenderer.loop = true;
-            MiniMapViewRenderer.materials[0] = LineRendererMaterial;
-            MiniMapViewRenderer.materials[0].color = new Color(1,1,1,1);
+            MiniMapViewRenderer.material = new Material(Shader.Find("UI/Default"));
             MiniMapViewRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            MiniMapViewRenderer.alignment = LineAlignment.View;
         }
 
-
+        public void OptionalMainCameraClamping()
+        {
+            if (ClampMainCameraToWorld == true) {
+                MainCamera.transform.position = new Vector3(
+                Mathf.Clamp(MainCamera.transform.position.x, WorldSystem.LL.x + (MainCameraBounds.size.x * 0.5f), WorldSystem.UR.x - +(MainCameraBounds.size.x * 0.5f)),
+                Mathf.Clamp(MainCamera.transform.position.y, WorldSystem.LL.y + (MainCameraBounds.size.y * 0.5f), WorldSystem.UR.y - +(MainCameraBounds.size.y * 0.5f)),
+                0);
+            }
+        }
 
         void UpdateMainCameraView()
         {
@@ -205,21 +231,25 @@ namespace minimap.rts.twod
             MainCameraBounds = MainCamera.OrthographicBounds();
             WorldSystem.recalculateSize();
 
-            float xWorldPercentageMin = (Vector2.Distance(new Vector2(MainCameraBounds.min.x, 0), new Vector2(WorldSystem.LL.x, 0))) / WorldSystem.UR.x;
-            float yWorldPercentageMin = (Vector2.Distance(new Vector2(MainCameraBounds.min.y, 0), new Vector2(WorldSystem.LL.y, 0))) / WorldSystem.UR.y;
+            leftMargin = Vector2.Distance(new Vector2(MainCameraBounds.min.x, 0), new Vector2(WorldSystem.LL.x, 0));
+            xWorldPercentageMin = leftMargin / WorldSystem.width;
+            bottomMargin = Vector2.Distance(new Vector2(MainCameraBounds.min.y, 0), new Vector2(WorldSystem.LL.y, 0));
+            yWorldPercentageMin = bottomMargin / WorldSystem.height;
 
-            float xWorldPercentageMax = (Vector2.Distance(new Vector2(MainCameraBounds.max.x, 0), new Vector2(WorldSystem.UR.x, 0))) / WorldSystem.LR.x;
-            float yWorldPercentageMax = (Vector2.Distance(new Vector2(MainCameraBounds.max.y, 0), new Vector2(WorldSystem.UR.y, 0))) / WorldSystem.LR.y;
+            rightMargin = Vector2.Distance(new Vector2(MainCameraBounds.max.x, 0), new Vector2(WorldSystem.UR.x, 0));
+            xWorldPercentageMax = rightMargin / WorldSystem.width;
+            topMargin = Vector2.Distance(new Vector2(MainCameraBounds.max.y, 0), new Vector2(WorldSystem.UR.y, 0));
+            yWorldPercentageMax = topMargin / WorldSystem.height;
 
-            Debug.Log(xWorldPercentageMin);
-            Debug.Log(yWorldPercentageMin);
-            Debug.Log(xWorldPercentageMax);
-            Debug.Log(yWorldPercentageMax);
+            float leftMinimapOfRect = minimapRectTrans.rect.xMin + (minimapRectTrans.rect.width * xWorldPercentageMin);
+            float upMinimapOfRect = minimapRectTrans.rect.yMax - (minimapRectTrans.rect.height * yWorldPercentageMax);
+            float rightMinimapOfRect = minimapRectTrans.rect.xMax - (minimapRectTrans.rect.width * xWorldPercentageMax);
+            float downMinimapOfRect = minimapRectTrans.rect.yMin + (minimapRectTrans.rect.height * yWorldPercentageMin);
 
-            ViewRenderCorners[0] = new Vector3(minimapRectTrans.rect.xMin, minimapRectTrans.rect.yMax, -10);
-            ViewRenderCorners[1] = new Vector3(minimapRectTrans.rect.xMax, minimapRectTrans.rect.yMax, -10);
-            ViewRenderCorners[2] = new Vector3(minimapRectTrans.rect.xMax, minimapRectTrans.rect.yMin, -10);
-            ViewRenderCorners[3] = new Vector3(minimapRectTrans.rect.xMin, minimapRectTrans.rect.yMin, -10);
+            ViewRenderCorners[0] = new Vector3(leftMinimapOfRect, upMinimapOfRect, -10);
+            ViewRenderCorners[1] = new Vector3(rightMinimapOfRect, upMinimapOfRect, -10);
+            ViewRenderCorners[2] = new Vector3(rightMinimapOfRect, downMinimapOfRect, -10);
+            ViewRenderCorners[3] = new Vector3(leftMinimapOfRect, downMinimapOfRect, -10);
 
             for (int i = 0; i < ViewRenderCorners.Length; i++)
             {
@@ -229,16 +259,6 @@ namespace minimap.rts.twod
 
         void OnDrawGizmos()
         {
-            float leftMargin = Vector2.Distance(new Vector2(MainCameraBounds.min.x, 0), new Vector2(WorldSystem.LL.x, 0));
-            float xWorldPercentageMin = leftMargin / WorldSystem.width;
-            float bottomMargin = Vector2.Distance(new Vector2(MainCameraBounds.min.y, 0), new Vector2(WorldSystem.LL.y, 0));
-            float yWorldPercentageMin = bottomMargin / WorldSystem.height;
-
-            float rightMargin = Vector2.Distance(new Vector2(MainCameraBounds.max.x, 0), new Vector2(WorldSystem.UR.x, 0));
-            float xWorldPercentageMax = rightMargin / WorldSystem.width;
-            float topMargin = Vector2.Distance(new Vector2(MainCameraBounds.max.y, 0), new Vector2(WorldSystem.UR.y, 0));
-            float yWorldPercentageMax = topMargin / WorldSystem.height;
-
             Handles.Label(MainCameraBounds.center + (Vector3.left * 10f), "(" + xWorldPercentageMin + "/" + leftMargin + ")");
             Handles.Label(MainCameraBounds.center + (Vector3.down * 5f), "(" + yWorldPercentageMin + "/" + bottomMargin + ")");
             Handles.Label(MainCameraBounds.center + (Vector3.right * 10f), "(" + xWorldPercentageMax + "/" + rightMargin + ")");
