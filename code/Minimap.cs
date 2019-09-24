@@ -4,29 +4,30 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Linq;
 using UnityEditor;
+using UnityEngine.EventSystems;
 
 namespace minimap.rts.twod
 {
-    public class Minimap : MonoBehaviour
+    public class Minimap : MonoBehaviour, IPointerClickHandler, IDragHandler
     {
         public Icons UnitIcons;
         [AutoAssign]
         public RectTransform MinimapPanelTransform;
-
         [AutoAssign]
         public Camera MinimapCamera;
         [AutoAssign]
         public Camera MainCamera;
         public bool ClampMainCameraToWorld = true;
-        private Transform MainCameraTransform;
         [Slider(0.4f, 1.0f)]
         [SimpleButton("UpdateMinimapCamera", typeof(Minimap))]
         public float ZoomDelta = 1.0f;
 
         public Dictionary<string, MinimapCornerMarker> MapCorners = new Dictionary<string, MinimapCornerMarker>();
-        protected CoordinateSystem MinimapSystem = new CoordinateSystem();
+        public CoordinateSystem MinimapSystem = new CoordinateSystem();
         public CoordinateSystem WorldSystem = new CoordinateSystem();
 
+
+        private Transform MainCameraTransform;
         private LineRenderer MiniMapViewRenderer;
         private Vector3[] ViewRenderCorners = new Vector3[4];
         private RectTransform minimapRectTrans;
@@ -88,7 +89,7 @@ namespace minimap.rts.twod
             {
                 MainCameraTransform = MainCamera.transform;
             }
-            if(MiniMapViewRenderer == null)
+            if (MiniMapViewRenderer == null)
             {
                 MiniMapViewRenderer = this.gameObject.AddComponent<LineRenderer>();
             }
@@ -102,6 +103,7 @@ namespace minimap.rts.twod
         {
             //calculate the distances between all the corner points and get the size for the camera
             UpdateMinimapCamera();
+            UpdateMinimapCoordinates();
             SetupViewLineRenderer();
         }
 
@@ -111,7 +113,7 @@ namespace minimap.rts.twod
             float yMin = -1f;
             float yMax = 1f;
 
-            if(MapCorners.Count <= 0)
+            if (MapCorners.Count <= 0)
             {
                 Debug.LogError(this.ToString() + "You forgot to place some GameObjects holding 'MinimapCornerMarker.cs'. Need 2 at least!");
                 return 17f;
@@ -160,7 +162,7 @@ namespace minimap.rts.twod
             //should only return distance of on dimension o
             if (_ReturnTheHigherOne)
             {
-                if(_NewValue > _Value)
+                if (_NewValue > _Value)
                 {
                     return _NewValue;
                 }
@@ -185,7 +187,6 @@ namespace minimap.rts.twod
         void Update()
         {
             UpdateMainCameraView();
-            OptionalMainCameraClamping();
         }
 
         private void LateUpdate()
@@ -193,13 +194,32 @@ namespace minimap.rts.twod
             OptionalMainCameraClamping();
         }
 
+        public void OnDrag(PointerEventData eventData)
+        {
+            if (eventData.pointerCurrentRaycast.gameObject != null && eventData.pointerCurrentRaycast.gameObject.name == this.gameObject.name)
+            {
+                handleLeftDrag(eventData);
+                handleRightClick(eventData);
+            }
+        }
+
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (eventData.pointerCurrentRaycast.gameObject != null && eventData.pointerCurrentRaycast.gameObject.name == this.gameObject.name)
+            {
+                handleLeftClick(eventData);
+                handleRightDrag(eventData);
+            }
+        }
+
+
         void SetupViewLineRenderer()
         {
             MiniMapViewRenderer.sortingLayerName = "OnTop";
             MiniMapViewRenderer.sortingOrder = 20;
             MiniMapViewRenderer.positionCount = 4;
 
-            for( int i =0; i< ViewRenderCorners.Length; i++)
+            for (int i = 0; i < ViewRenderCorners.Length; i++)
             {
                 MiniMapViewRenderer.SetPosition(i, ViewRenderCorners[i]);
             }
@@ -215,17 +235,74 @@ namespace minimap.rts.twod
             MiniMapViewRenderer.alignment = LineAlignment.View;
         }
 
-        public void OptionalMainCameraClamping()
+        protected void handleLeftDrag(PointerEventData eventData)
+        {
+            if (eventData.button == PointerEventData.InputButton.Left)
+            {
+                setMainCameraWithMinimapEvent(eventData);
+            }
+        }
+
+        protected void handleRightDrag(PointerEventData eventData)
+        {
+            if (eventData.button == PointerEventData.InputButton.Left)
+            {
+                return;
+            }
+        }
+
+        protected void handleLeftClick(PointerEventData eventData)
+        {
+            if (eventData.button == PointerEventData.InputButton.Left)
+            {
+                setMainCameraWithMinimapEvent(eventData);
+            }
+        }
+
+        protected void handleRightClick(PointerEventData eventData)
+        {
+            if (eventData.button == PointerEventData.InputButton.Right)
+            {
+            }
+        }
+
+        protected void OptionalMainCameraClamping()
         {
             if (ClampMainCameraToWorld == true) {
                 MainCamera.transform.position = new Vector3(
                 Mathf.Clamp(MainCamera.transform.position.x, WorldSystem.LL.x + (MainCameraBounds.size.x * 0.5f), WorldSystem.UR.x - +(MainCameraBounds.size.x * 0.5f)),
                 Mathf.Clamp(MainCamera.transform.position.y, WorldSystem.LL.y + (MainCameraBounds.size.y * 0.5f), WorldSystem.UR.y - +(MainCameraBounds.size.y * 0.5f)),
-                0);
+                MainCamera.transform.position.z);
             }
         }
 
-        void UpdateMainCameraView()
+        void setMainCameraWithMinimapEvent(PointerEventData eventData)
+        {
+            //TODO clamp the mouse values to not overshoot
+
+            Vector2 localCursor;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(this.minimapRectTrans, eventData.position, eventData.pressEventCamera, out localCursor);
+
+            // calculate percentage point in UI
+            Vector2 UIPercentage = new Vector2(
+                    1 - Mathf.Abs(localCursor.x - MinimapSystem.LL.x) / MinimapSystem.width,
+                    1 - Mathf.Abs(localCursor.y - MinimapSystem.LL.y) / MinimapSystem.height
+                    );
+
+            // transform percentage point into World Coordinates
+            Vector3 RealWorld = new Vector3(
+                WorldSystem.width * UIPercentage.x,
+                WorldSystem.height * UIPercentage.y,
+                MainCameraTransform.position.z
+                );
+
+            Vector3 correctedRealWorld = new Vector3(RealWorld.x - (WorldSystem.width * 0.5f), RealWorld.y - (WorldSystem.height * 0.5f), MainCameraTransform.position.z);
+            Debug.Log("NEW %: " + RealWorld);
+            Debug.Log("NEW World: " + correctedRealWorld);
+            MainCamera.transform.position = correctedRealWorld;
+        }
+
+        protected void UpdateMainCameraView()
         {
             // TODO okey it is to late atm dnk what I do here ... well lets calculate positions from real later...
             MainCameraBounds = MainCamera.OrthographicBounds();
@@ -298,6 +375,18 @@ namespace minimap.rts.twod
             WorldSystem.UR = new Vector2(_CameraPosition.x + _CameraSize, _CameraPosition.y + _CameraSize);
             WorldSystem.LR = new Vector2(_CameraPosition.x + _CameraSize, _CameraPosition.y - _CameraSize);
             WorldSystem.LL = new Vector2(_CameraPosition.x - _CameraSize, _CameraPosition.y - _CameraSize);
+
+            WorldSystem.recalculateSize();
+        }
+
+        public void UpdateMinimapCoordinates()
+        {
+            MinimapSystem.UL = new Vector2(0, this.minimapRectTrans.anchoredPosition.y);
+            MinimapSystem.UR = new Vector2(this.minimapRectTrans.anchoredPosition.x, this.minimapRectTrans.anchoredPosition.y);
+            MinimapSystem.LR = new Vector2(this.minimapRectTrans.anchoredPosition.x, 0);
+            MinimapSystem.LL = new Vector2(0, 0);
+
+            MinimapSystem.recalculateSize();
         }
 
         public void addCorner(string _UniqueID, MinimapCornerMarker _Marker)
@@ -308,11 +397,6 @@ namespace minimap.rts.twod
         public void removeCorner(string _UniqueID)
         {
             MapCorners.Remove(_UniqueID);
-        }
-
-        public Vector2 calculatePosition(Vector3 realWorldPosition)
-        {
-            return Vector2.zero;
         }
 
         public GameObject GetIcon(IconType _Type)
@@ -370,8 +454,8 @@ namespace minimap.rts.twod
             }
 
             public void recalculateSize() {
-                this.width = Vector2.Distance(new Vector2(this.UL.x, 0), new Vector2(this.UR.x, 0));
-                this.height = Vector2.Distance(new Vector2(this.UL.y, 0), new Vector2(this.LL.y, 0));
+                this.width = Mathf.Abs(this.UR.x - this.LL.x);
+                this.height = Mathf.Abs(this.UL.y-  this.LL.y);
             }
         }
 
