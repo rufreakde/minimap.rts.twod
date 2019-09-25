@@ -12,6 +12,8 @@ namespace minimap.rts.twod
         
         [SimpleButton("InsertCurrentPositionAtFront", typeof(MinimapCornerMarker))]
         [SimpleButton("InsertCurrentPositionAtBack", typeof(MinimapCornerMarker))]
+        [SimpleButton("triggerPositionNext", typeof(MinimapCornerMarker))]
+        [SimpleButton("triggerPositionPrevious", typeof(MinimapCornerMarker))]
         [InfoBox("The current 'transform.position' will be inserted automatically 'NextPositionsOverTime' is empty!")]
         public List<Vector2> NextPositionsOverTime;
 

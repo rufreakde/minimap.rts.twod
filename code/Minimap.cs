@@ -23,15 +23,14 @@ namespace minimap.rts.twod
         public float ZoomDelta = 1.0f;
 
         public Dictionary<string, MinimapCornerMarker> MapCorners = new Dictionary<string, MinimapCornerMarker>();
-        public CoordinateSystem MinimapSystem = new CoordinateSystem();
-        public CoordinateSystem WorldSystem = new CoordinateSystem();
-
+        public Rect MinimapSystem = new Rect();
+        public Rect WorldSystem = new Rect();
 
         private Transform MainCameraTransform;
         private LineRenderer MiniMapViewRenderer;
         private Vector3[] ViewRenderCorners = new Vector3[4];
         private RectTransform minimapRectTrans;
-        private Bounds MainCameraBounds = new Bounds();
+        private Rect MainCameraBounds = new Rect();
 
         private float leftMargin;
         private float xWorldPercentageMin;
@@ -42,7 +41,10 @@ namespace minimap.rts.twod
         private float topMargin;
         private float yWorldPercentageMax;
 
+        private PointerEventData dragData;
+        private PointerEventData clickData;
 
+        #region unity
         void Awake()
         {
             if (MinimapPanelTransform == null)
@@ -98,7 +100,6 @@ namespace minimap.rts.twod
                 minimapRectTrans = this.transform.GetComponent<RectTransform>();
             }
         }
-
         void Start()
         {
             //calculate the distances between all the corner points and get the size for the camera
@@ -106,42 +107,78 @@ namespace minimap.rts.twod
             UpdateMinimapCoordinates();
             SetupViewLineRenderer();
         }
-
-        private float getOptimalOrthographicCameraSize() {
-            float xMin = -1f;
-            float xMax = 1f;
-            float yMin = -1f;
-            float yMax = 1f;
-
-            if (MapCorners.Count <= 0)
-            {
-                Debug.LogError(this.ToString() + "You forgot to place some GameObjects holding 'MinimapCornerMarker.cs'. Need 2 at least!");
-                return 17f;
-            }
-
-            foreach (KeyValuePair<string, MinimapCornerMarker> item in MapCorners)
-            {
-                Transform tempTrans = item.Value.transform;
-                xMin = checkDimension(xMin, tempTrans.GetPositionX(), false);
-                xMax = checkDimension(xMax, tempTrans.GetPositionX(), true);
-                yMin = checkDimension(yMin, tempTrans.GetPositionY(), false);
-                yMax = checkDimension(yMax, tempTrans.GetPositionY(), true);
-            }
-
-            float distanceX = Vector2.Distance(new Vector2(xMin, 0), new Vector2(xMax, 0));
-            float distanceY = Vector2.Distance(new Vector2(0, yMin), new Vector2(0, yMax));
-
-            float biggestDistance = checkDimension(distanceX, distanceY, true);
-
-            return biggestDistance * 0.50f;
+        void Update()
+        {
+            drag(dragData);
+            click(clickData);
+            UpdateMainCameraView();
+            clearDragClickInput();
         }
+        void LateUpdate()
+        {
+            OptionalMainCameraClamping();
+        }
+        public void OnDrag(PointerEventData eventData)
+        {
+            dragData = eventData;
+        }
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            clickData = eventData;
+        }
+        public void UpdateMinimapCamera()
+        {
+            if (MinimapCamera)
+            {
+                MinimapCamera.orthographicSize = getOptimalOrthographicCameraSize();
 
+                MinimapCamera.transform.position = calculatePseudoCentroid(MapCorners.Values.ToList().ToArray());
+                UpdateWorldCoordinates(MinimapCamera.orthographicSize, MinimapCamera.transform.position);
+            }
+        }
+        #endregion
+
+        #region public
         public Vector3 calculatePseudoCentroid(MinimapCornerMarker[] points)
         {
-            float xMin = -1f;
-            float xMax = 1f;
-            float yMin = -1f;
-            float yMax = 1f;
+            Rect worldDim = calculateWorldBordersRect();
+            return new Vector3(worldDim.xMin + (worldDim.width * 0.5f), worldDim.yMin + (worldDim.height * 0.5f), MinimapCamera.transform.position.z);
+        }
+        public GameObject GetIcon(IconType _Type)
+        {
+            switch (_Type)
+            {
+                case IconType.GroundUnit: { return UnitIcons.GroundUnit; break; }
+                case IconType.Building: { return UnitIcons.Building; break; }
+                case IconType.Aircraft: { return UnitIcons.Aircraft; break; }
+                case IconType.Ship: { return UnitIcons.Ship; break; }
+                default: { return UnitIcons.GroundUnit; break; }
+            }
+        }
+        public void addCorner(string _UniqueID, MinimapCornerMarker _Marker)
+        {
+            MapCorners.Add(_UniqueID, _Marker);
+        }
+        public void removeCorner(string _UniqueID)
+        {
+            MapCorners.Remove(_UniqueID);
+            UpdateMinimapCamera();
+        }
+        #endregion
+
+        protected float getOptimalOrthographicCameraSize() {
+
+            Rect worldDim = calculateWorldBordersRect();
+            float biggestDistance = checkDimension(worldDim.width, worldDim.height, true);
+            Debug.Log(worldDim.width + " " + worldDim.height);
+            return biggestDistance * 0.50f;
+        }
+        protected Rect calculateWorldBordersRect()
+        {
+            float xMin = Mathf.Infinity;
+            float xMax = Mathf.NegativeInfinity;
+            float yMin = Mathf.Infinity;
+            float yMax = Mathf.NegativeInfinity;
 
             foreach (KeyValuePair<string, MinimapCornerMarker> item in MapCorners)
             {
@@ -152,13 +189,12 @@ namespace minimap.rts.twod
                 yMax = checkDimension(yMax, tempTrans.GetPositionY(), true);
             }
 
-            float distanceX = Vector2.Distance(new Vector2(xMin, 0), new Vector2(xMax, 0));
-            float distanceY = Vector2.Distance(new Vector2(0, yMin), new Vector2(0, yMax));
+            float distanceX = Mathf.Abs(xMin - xMax);
+            float distanceY = Mathf.Abs(yMin - yMax);
 
-            return new Vector3(xMin + (distanceX * 0.5f), yMin + (distanceY * 0.5f), MinimapCamera.transform.position.z);
+            return new Rect(xMin, yMin, distanceX, distanceY);
         }
-
-        private float checkDimension(float _Value, float _NewValue, bool _ReturnTheHigherOne) {
+        protected float checkDimension(float _Value, float _NewValue, bool _ReturnTheHigherOne) {
             //should only return distance of on dimension o
             if (_ReturnTheHigherOne)
             {
@@ -183,37 +219,28 @@ namespace minimap.rts.twod
                 }
             }
         }
-
-        void Update()
+        protected void drag(PointerEventData eventData)
         {
-            UpdateMainCameraView();
-        }
-
-        private void LateUpdate()
-        {
-            OptionalMainCameraClamping();
-        }
-
-        public void OnDrag(PointerEventData eventData)
-        {
-            if (eventData.pointerCurrentRaycast.gameObject != null && eventData.pointerCurrentRaycast.gameObject.name == this.gameObject.name)
+            if (eventData != null && eventData.pointerCurrentRaycast.gameObject != null && eventData.pointerCurrentRaycast.gameObject.name == this.gameObject.name)
             {
                 handleLeftDrag(eventData);
-                handleRightClick(eventData);
-            }
-        }
-
-        public void OnPointerClick(PointerEventData eventData)
-        {
-            if (eventData.pointerCurrentRaycast.gameObject != null && eventData.pointerCurrentRaycast.gameObject.name == this.gameObject.name)
-            {
-                handleLeftClick(eventData);
                 handleRightDrag(eventData);
             }
         }
-
-
-        void SetupViewLineRenderer()
+        protected void click(PointerEventData eventData)
+        {
+            if (eventData != null && eventData.pointerCurrentRaycast.gameObject != null && eventData.pointerCurrentRaycast.gameObject.name == this.gameObject.name)
+            {
+                handleLeftClick(eventData);
+                handleRightClick(eventData);
+            }
+        }
+        protected void clearDragClickInput()
+        {
+            dragData = null;
+            clickData = null;
+        }
+        protected void SetupViewLineRenderer()
         {
             MiniMapViewRenderer.sortingLayerName = "OnTop";
             MiniMapViewRenderer.sortingOrder = 20;
@@ -226,15 +253,14 @@ namespace minimap.rts.twod
 
             MiniMapViewRenderer.numCapVertices = 1;
             MiniMapViewRenderer.numCornerVertices = 1;
-            MiniMapViewRenderer.startWidth = 0.040000000000000000000000000f;
-            MiniMapViewRenderer.endWidth = 0.040000000000000000000000000f;
+            MiniMapViewRenderer.startWidth = 0.10000000000000000000000000f;
+            MiniMapViewRenderer.endWidth = 0.10000000000000000000000000f;
             MiniMapViewRenderer.useWorldSpace = false;
             MiniMapViewRenderer.loop = true;
             MiniMapViewRenderer.material = new Material(Shader.Find("UI/Default"));
             MiniMapViewRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             MiniMapViewRenderer.alignment = LineAlignment.View;
         }
-
         protected void handleLeftDrag(PointerEventData eventData)
         {
             if (eventData.button == PointerEventData.InputButton.Left)
@@ -242,7 +268,6 @@ namespace minimap.rts.twod
                 setMainCameraWithMinimapEvent(eventData);
             }
         }
-
         protected void handleRightDrag(PointerEventData eventData)
         {
             if (eventData.button == PointerEventData.InputButton.Left)
@@ -250,7 +275,6 @@ namespace minimap.rts.twod
                 return;
             }
         }
-
         protected void handleLeftClick(PointerEventData eventData)
         {
             if (eventData.button == PointerEventData.InputButton.Left)
@@ -258,64 +282,58 @@ namespace minimap.rts.twod
                 setMainCameraWithMinimapEvent(eventData);
             }
         }
-
         protected void handleRightClick(PointerEventData eventData)
         {
             if (eventData.button == PointerEventData.InputButton.Right)
             {
             }
         }
-
         protected void OptionalMainCameraClamping()
         {
             if (ClampMainCameraToWorld == true) {
-                MainCamera.transform.position = new Vector3(
-                Mathf.Clamp(MainCamera.transform.position.x, WorldSystem.LL.x + (MainCameraBounds.size.x * 0.5f), WorldSystem.UR.x - +(MainCameraBounds.size.x * 0.5f)),
-                Mathf.Clamp(MainCamera.transform.position.y, WorldSystem.LL.y + (MainCameraBounds.size.y * 0.5f), WorldSystem.UR.y - +(MainCameraBounds.size.y * 0.5f)),
-                MainCamera.transform.position.z);
+                MainCameraTransform.position = new Vector3(
+                Mathf.Clamp(MainCameraTransform.position.x, WorldSystem.xMin + (MainCameraBounds.width * 0.5f), WorldSystem.xMax - +(MainCameraBounds.width * 0.5f)),
+                Mathf.Clamp(MainCameraTransform.position.y, WorldSystem.yMin + (MainCameraBounds.height * 0.5f), WorldSystem.yMax - +(MainCameraBounds.height * 0.5f)),
+                MainCameraTransform.position.z);
             }
         }
-
-        void setMainCameraWithMinimapEvent(PointerEventData eventData)
+        protected void setMainCameraWithMinimapEvent(PointerEventData eventData)
         {
-            //TODO clamp the mouse values to not overshoot
-
             Vector2 localCursor;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(this.minimapRectTrans, eventData.position, eventData.pressEventCamera, out localCursor);
 
-            // calculate percentage point in UI
             Vector2 UIPercentage = new Vector2(
-                    1 - Mathf.Abs(localCursor.x - MinimapSystem.LL.x) / MinimapSystem.width,
-                    1 - Mathf.Abs(localCursor.y - MinimapSystem.LL.y) / MinimapSystem.height
+                    1 - Mathf.Abs(localCursor.x - MinimapSystem.xMin) / MinimapSystem.width,
+                    1 - Mathf.Abs(localCursor.y - MinimapSystem.yMin) / MinimapSystem.height
                     );
 
-            // transform percentage point into World Coordinates
+            Debug.Log("% " + UIPercentage);
             Vector3 RealWorld = new Vector3(
                 WorldSystem.width * UIPercentage.x,
                 WorldSystem.height * UIPercentage.y,
                 MainCameraTransform.position.z
                 );
 
-            Vector3 correctedRealWorld = new Vector3(RealWorld.x - (WorldSystem.width * 0.5f), RealWorld.y - (WorldSystem.height * 0.5f), MainCameraTransform.position.z);
-            Debug.Log("NEW %: " + RealWorld);
-            Debug.Log("NEW World: " + correctedRealWorld);
-            MainCamera.transform.position = correctedRealWorld;
-        }
+            Debug.Log("R " + RealWorld.x + " / " + RealWorld.y);
+            Vector3 correctedRealWorld = new Vector3(RealWorld.x + WorldSystem.xMin, RealWorld.y + WorldSystem.yMin, MainCameraTransform.position.z);
+            Debug.Log("R-B " + correctedRealWorld.x + "/" + correctedRealWorld.y);
 
+            MainCameraTransform.position = new Vector3(
+                Mathf.Clamp(correctedRealWorld.x, WorldSystem.xMin + (MainCameraBounds.width * 0.5f), WorldSystem.xMax - (MainCameraBounds.width * 0.5f)),
+                Mathf.Clamp(correctedRealWorld.y, WorldSystem.yMin + (MainCameraBounds.height * 0.5f), WorldSystem.yMax - (MainCameraBounds.height * 0.5f)),
+                correctedRealWorld.z);
+        }
         protected void UpdateMainCameraView()
         {
-            // TODO okey it is to late atm dnk what I do here ... well lets calculate positions from real later...
-            MainCameraBounds = MainCamera.OrthographicBounds();
-            WorldSystem.recalculateSize();
-
-            leftMargin = Vector2.Distance(new Vector2(MainCameraBounds.min.x, 0), new Vector2(WorldSystem.LL.x, 0));
+            MainCameraBounds = MainCamera.OrthographicRect();
+            leftMargin =  Mathf.Abs(MainCameraBounds.min.x - WorldSystem.xMin);
             xWorldPercentageMin = leftMargin / WorldSystem.width;
-            bottomMargin = Vector2.Distance(new Vector2(MainCameraBounds.min.y, 0), new Vector2(WorldSystem.LL.y, 0));
+            bottomMargin = Mathf.Abs(MainCameraBounds.min.y - WorldSystem.yMin);
             yWorldPercentageMin = bottomMargin / WorldSystem.height;
 
-            rightMargin = Vector2.Distance(new Vector2(MainCameraBounds.max.x, 0), new Vector2(WorldSystem.UR.x, 0));
+            rightMargin = Mathf.Abs(MainCameraBounds.max.x - WorldSystem.xMax);
             xWorldPercentageMax = rightMargin / WorldSystem.width;
-            topMargin = Vector2.Distance(new Vector2(MainCameraBounds.max.y, 0), new Vector2(WorldSystem.UR.y, 0));
+            topMargin = Mathf.Abs(MainCameraBounds.max.y - WorldSystem.yMax);
             yWorldPercentageMax = topMargin / WorldSystem.height;
 
             float leftMinimapOfRect = minimapRectTrans.rect.xMin + (minimapRectTrans.rect.width * xWorldPercentageMin);
@@ -333,84 +351,57 @@ namespace minimap.rts.twod
                 MiniMapViewRenderer.SetPosition(i, ViewRenderCorners[i]);
             }
         }
-
+        protected void UpdateWorldCoordinates(float _CameraSize, Vector3 _CameraPosition)
+        {
+            WorldSystem.max = new Vector2(_CameraPosition.x + _CameraSize, _CameraPosition.y + _CameraSize);
+            WorldSystem.min = new Vector2(_CameraPosition.x - _CameraSize, _CameraPosition.y - _CameraSize);
+        }
+        protected void UpdateMinimapCoordinates()
+        {
+            MinimapSystem.max = new Vector2(this.minimapRectTrans.anchoredPosition.x, this.minimapRectTrans.anchoredPosition.y);
+            MinimapSystem.min = new Vector2(0, 0);
+        }
         void OnDrawGizmos()
         {
-            Handles.Label(MainCameraBounds.center + (Vector3.left * 10f), "(" + xWorldPercentageMin + "/" + leftMargin + ")");
-            Handles.Label(MainCameraBounds.center + (Vector3.down * 5f), "(" + yWorldPercentageMin + "/" + bottomMargin + ")");
-            Handles.Label(MainCameraBounds.center + (Vector3.right * 10f), "(" + xWorldPercentageMax + "/" + rightMargin + ")");
-            Handles.Label(MainCameraBounds.center + (Vector3.up * 5f ), "(" + yWorldPercentageMax + "/" + topMargin + ")");
+            Handles.Label((Vector3)MainCameraBounds.center + (Vector3.left * 20f), "(" + xWorldPercentageMin + "/" + leftMargin + ")");
+            Handles.Label((Vector3)MainCameraBounds.center + (Vector3.down * 20f), "(" + yWorldPercentageMin + "/" + bottomMargin + ")");
+            Handles.Label((Vector3)MainCameraBounds.center + (Vector3.right * 20f), "(" + xWorldPercentageMax + "/" + rightMargin + ")");
+            Handles.Label((Vector3)MainCameraBounds.center + (Vector3.up * 20f), "(" + yWorldPercentageMax + "/" + topMargin + ")");
 
-            Handles.Label(WorldSystem.UL, "(" + WorldSystem.UL.x + "," + WorldSystem.UL.y + ")");
-            Gizmos.DrawWireSphere(WorldSystem.UL, 1f);
-            Handles.Label(WorldSystem.UR, "(" + WorldSystem.UR.x + "," + WorldSystem.UR.y + ")");
-            Gizmos.DrawWireSphere(WorldSystem.UR, 1f);
-            Handles.Label(WorldSystem.LR, "(" + WorldSystem.LR.x + "," + WorldSystem.LR.y + ")");
-            Gizmos.DrawWireSphere(WorldSystem.LR, 1f);
-            Handles.Label(WorldSystem.LL, "(" + WorldSystem.LL.x + "," + WorldSystem.LL.y + ")");
-            Gizmos.DrawWireSphere(WorldSystem.LL, 1f);
+            Gizmos.color = Color.cyan;
+            //WORLDSYSTEM CYAN
+            Handles.Label(WorldSystem.minMax(), "(" + WorldSystem.xMin + "," + WorldSystem.yMax + ")");
+            Gizmos.DrawWireSphere(WorldSystem.minMax(), 1f);
+            Handles.Label(WorldSystem.max, "(" + WorldSystem.xMax + "," + WorldSystem.yMax + ")");
+            Gizmos.DrawWireSphere(WorldSystem.max, 1f);
+            Handles.Label(WorldSystem.maxMin(), "(" + WorldSystem.xMax + "," + WorldSystem.yMin + ")");
+            Gizmos.DrawWireSphere(WorldSystem.maxMin(), 1f);
+            Handles.Label(WorldSystem.min, "(" + WorldSystem.xMin + "," + WorldSystem.yMin + ")");
+            Gizmos.DrawWireSphere(WorldSystem.min, 1f);
 
-            Handles.Label(WorldSystem.LL + (Vector2.left * 10f), "(" + WorldSystem.height + ")");
-            Handles.Label(WorldSystem.LL + (Vector2.down * 10f), "(" + WorldSystem.width + ")");
-            Handles.Label(WorldSystem.UR + (Vector2.right * 10f), "(" + WorldSystem.height + ")");
-            Handles.Label(WorldSystem.UR + (Vector2.up * 10f), "(" + WorldSystem.width + ")");
+            Gizmos.DrawLine(WorldSystem.min, WorldSystem.minMax());
+            Gizmos.DrawLine(WorldSystem.minMax(), WorldSystem.max);
+            Gizmos.DrawLine(WorldSystem.max, WorldSystem.maxMin());
+            Gizmos.DrawLine(WorldSystem.maxMin(), WorldSystem.min);
 
+            Gizmos.color = Color.magenta;
+            Handles.Label(WorldSystem.center + (Vector2.left * 20f), "(" + WorldSystem.height + ")");
+            Handles.Label(WorldSystem.center + (Vector2.down * 20f), "(" + WorldSystem.width + ")");
+            Handles.Label(WorldSystem.center + (Vector2.right * 20f), "(" + WorldSystem.height + ")");
+            Handles.Label(WorldSystem.center + (Vector2.up * 20f), "(" + WorldSystem.width + ")");
+
+            //CAMERABOUNDS MAGENTA
             Handles.Label(MainCameraBounds.min, "(" + MainCameraBounds.min.x + "," + MainCameraBounds.min.y + ")");
-            Gizmos.DrawWireSphere(MainCameraBounds.min, 1f);
             Handles.Label(MainCameraBounds.center, "(" + MainCameraBounds.center.x + "," + MainCameraBounds.center.y + ")");
-            Gizmos.DrawWireSphere(MainCameraBounds.center, 1f);
             Handles.Label(MainCameraBounds.max, "(" + MainCameraBounds.max.x + "," + MainCameraBounds.max.y + ")");
-            Gizmos.DrawWireSphere(MainCameraBounds.max, 1f);
+
+            Gizmos.DrawLine(MainCameraBounds.min, MainCameraBounds.minMax());
+            Gizmos.DrawLine(MainCameraBounds.minMax(), MainCameraBounds.max);
+            Gizmos.DrawLine(MainCameraBounds.max, MainCameraBounds.maxMin());
+            Gizmos.DrawLine(MainCameraBounds.maxMin(), MainCameraBounds.min);
         }
 
-        public void UpdateMinimapCamera() {
-            MinimapCamera.orthographicSize = getOptimalOrthographicCameraSize();
-            MinimapCamera.transform.position = calculatePseudoCentroid(MapCorners.Values.ToList().ToArray());
-            UpdateWorldCoordinates(MinimapCamera.orthographicSize, MinimapCamera.transform.position);
-        }
-
-        public void UpdateWorldCoordinates(float _CameraSize, Vector3 _CameraPosition)
-        {
-            WorldSystem.UL = new Vector2(_CameraPosition.x - _CameraSize, _CameraPosition.y + _CameraSize);
-            WorldSystem.UR = new Vector2(_CameraPosition.x + _CameraSize, _CameraPosition.y + _CameraSize);
-            WorldSystem.LR = new Vector2(_CameraPosition.x + _CameraSize, _CameraPosition.y - _CameraSize);
-            WorldSystem.LL = new Vector2(_CameraPosition.x - _CameraSize, _CameraPosition.y - _CameraSize);
-
-            WorldSystem.recalculateSize();
-        }
-
-        public void UpdateMinimapCoordinates()
-        {
-            MinimapSystem.UL = new Vector2(0, this.minimapRectTrans.anchoredPosition.y);
-            MinimapSystem.UR = new Vector2(this.minimapRectTrans.anchoredPosition.x, this.minimapRectTrans.anchoredPosition.y);
-            MinimapSystem.LR = new Vector2(this.minimapRectTrans.anchoredPosition.x, 0);
-            MinimapSystem.LL = new Vector2(0, 0);
-
-            MinimapSystem.recalculateSize();
-        }
-
-        public void addCorner(string _UniqueID, MinimapCornerMarker _Marker)
-        {
-            MapCorners.Add(_UniqueID, _Marker);
-        }
-
-        public void removeCorner(string _UniqueID)
-        {
-            MapCorners.Remove(_UniqueID);
-        }
-
-        public GameObject GetIcon(IconType _Type)
-        {
-            switch (_Type)
-            {
-                case IconType.GroundUnit: { return UnitIcons.GroundUnit; break; }
-                case IconType.Building: { return UnitIcons.Building; break; }
-                case IconType.Aircraft: { return UnitIcons.Aircraft; break; }
-                case IconType.Ship: { return UnitIcons.Ship; break; }
-                default: { return UnitIcons.GroundUnit; break; }
-            }
-        }
-
+        #region struct definitions
         public enum IconType
         {
             GroundUnit,
@@ -429,37 +420,6 @@ namespace minimap.rts.twod
         }
 
         [System.Serializable]
-        public class CoordinateSystem
-        {
-            public Vector2 UL = new Vector2(-50, 0);
-            public Vector2 UR = new Vector2(50, 50);
-            public Vector2 LR = new Vector2(50, -50);
-            public Vector2 LL = new Vector2(-50, -50);
-
-            public float height = 0f;
-            public float width = 0f;
-
-            public CoordinateSystem()
-            {
-                recalculateSize();
-            }
-            public CoordinateSystem(Vector2 _UL, Vector2 _UR, Vector2 _LR, Vector2 _LL)
-            {
-                this.UL = _UL;
-                this.UR = _UR;
-                this.LR = _LR;
-                this.LL = _LL;
-
-                recalculateSize();
-            }
-
-            public void recalculateSize() {
-                this.width = Mathf.Abs(this.UR.x - this.LL.x);
-                this.height = Mathf.Abs(this.UL.y-  this.LL.y);
-            }
-        }
-
-        [System.Serializable]
         public struct Icons
         {
             [Mandatory]
@@ -471,6 +431,7 @@ namespace minimap.rts.twod
             [AutoAssign]
             public GameObject Ship;
         }
+        #endregion
     }
 
 }
