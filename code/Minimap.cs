@@ -11,17 +11,16 @@ namespace minimap.rts.twod
     public class Minimap : MonoBehaviour, IPointerClickHandler, IDragHandler
     {
         public Icons UnitIcons;
+        public bool ClampMainCameraToWorld = true;
+        [Slider(0.4f, 1.0f)]
+        [SimpleButton("UpdateMinimapCamera", typeof(Minimap))]
+        public float ZoomDelta = 1.0f;
         [AutoAssign]
         public RectTransform MinimapPanelTransform;
         [AutoAssign]
         public Camera MinimapCamera;
         [AutoAssign]
         public Camera MainCamera;
-        public bool ClampMainCameraToWorld = true;
-        [Slider(0.4f, 1.0f)]
-        [SimpleButton("UpdateMinimapCamera", typeof(Minimap))]
-        public float ZoomDelta = 1.0f;
-
         public Dictionary<string, MinimapCornerMarker> MapCorners = new Dictionary<string, MinimapCornerMarker>();
         public Rect MinimapSystem = new Rect();
         public Rect WorldSystem = new Rect();
@@ -131,7 +130,6 @@ namespace minimap.rts.twod
             if (MinimapCamera)
             {
                 MinimapCamera.orthographicSize = getOptimalOrthographicCameraSize();
-
                 MinimapCamera.transform.position = calculatePseudoCentroid(MapCorners.Values.ToList().ToArray());
                 UpdateWorldCoordinates(MinimapCamera.orthographicSize, MinimapCamera.transform.position);
             }
@@ -170,7 +168,6 @@ namespace minimap.rts.twod
 
             Rect worldDim = calculateWorldBordersRect();
             float biggestDistance = checkDimension(worldDim.width, worldDim.height, true);
-            Debug.Log(worldDim.width + " " + worldDim.height);
             return biggestDistance * 0.50f;
         }
         protected Rect calculateWorldBordersRect()
@@ -306,17 +303,12 @@ namespace minimap.rts.twod
                     1 - Mathf.Abs(localCursor.x - MinimapSystem.xMin) / MinimapSystem.width,
                     1 - Mathf.Abs(localCursor.y - MinimapSystem.yMin) / MinimapSystem.height
                     );
-
-            Debug.Log("% " + UIPercentage);
             Vector3 RealWorld = new Vector3(
                 WorldSystem.width * UIPercentage.x,
                 WorldSystem.height * UIPercentage.y,
                 MainCameraTransform.position.z
                 );
-
-            Debug.Log("R " + RealWorld.x + " / " + RealWorld.y);
             Vector3 correctedRealWorld = new Vector3(RealWorld.x + WorldSystem.xMin, RealWorld.y + WorldSystem.yMin, MainCameraTransform.position.z);
-            Debug.Log("R-B " + correctedRealWorld.x + "/" + correctedRealWorld.y);
 
             MainCameraTransform.position = new Vector3(
                 Mathf.Clamp(correctedRealWorld.x, WorldSystem.xMin + (MainCameraBounds.width * 0.5f), WorldSystem.xMax - (MainCameraBounds.width * 0.5f)),
@@ -411,24 +403,22 @@ namespace minimap.rts.twod
         }
 
         [System.Serializable]
-        public struct MinimapObject
+        public class MinimapObject
         {
-            public GameObject ChosenIcon;
-            public int Player;
-            public int Team;
-            public Color TeamColor;
+            public GameObject IconGO = null;
+            public IconType Icon = IconType.GroundUnit;
+            public int Player = 1;
+            public int Team = 1;
+            public Color TeamColor = Color.red;
+            public SpriteRenderer ColorRenderer = null;
         }
 
         [System.Serializable]
         public struct Icons
         {
-            [Mandatory]
             public GameObject GroundUnit;
-            [Mandatory]
             public GameObject Building;
-            [AutoAssign]
             public GameObject Aircraft;
-            [AutoAssign]
             public GameObject Ship;
         }
         #endregion
