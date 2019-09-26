@@ -14,6 +14,7 @@ namespace minimap.rts.twod
         public bool ClampMainCameraToWorld = true;
         [Slider(0.4f, 1.0f)]
         [SimpleButton("UpdateMinimapCamera", typeof(Minimap))]
+        [SimpleButton("test", typeof(Minimap))]
         public float ZoomDelta = 1.0f;
         [AutoAssign]
         public RectTransform MinimapPanelTransform;
@@ -24,6 +25,11 @@ namespace minimap.rts.twod
         public Dictionary<string, MinimapCornerMarker> MapCorners = new Dictionary<string, MinimapCornerMarker>();
         public Rect MinimapSystem = new Rect();
         public Rect WorldSystem = new Rect();
+
+        public delegate void dragMinimapEvent(PointerEventData _PointerEvent);
+        public delegate void clickMinimapEvent(PointerEventData _PointerEvent);
+        public dragMinimapEvent mouseDragDelegate;
+        public clickMinimapEvent mouseClickDelegate;
 
         private Transform MainCameraTransform;
         private LineRenderer MiniMapViewRenderer;
@@ -134,6 +140,54 @@ namespace minimap.rts.twod
                 UpdateWorldCoordinates(MinimapCamera.orthographicSize, MinimapCamera.transform.position);
             }
         }
+        /// <summary>
+        /// Calculate Point in World from Minimap. Z index is at Camera Z!
+        /// </summary>
+        /// <param name="_ClickPosition">Pixel (0,0)LL and (xMax,yMax)UR</param>
+        /// <param name="_MainCamera">The Camera used to render UI usually the main Camera!</param>
+        /// <returns></returns>
+        public Vector3 minimapPointToWorld(Vector2 _ClickPosition, Camera _MainCamera)
+        {
+            Vector2 localCursor;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(minimapRectTrans, _ClickPosition, _MainCamera, out localCursor);
+
+            Vector2 UIPercentage = new Vector2(
+                    1 - Mathf.Abs(localCursor.x - MinimapSystem.xMin) / MinimapSystem.width,
+                    1 - Mathf.Abs(localCursor.y - MinimapSystem.yMin) / MinimapSystem.height
+                    );
+            Vector3 RealWorld = new Vector3(
+                WorldSystem.width * UIPercentage.x,
+                WorldSystem.height * UIPercentage.y,
+                MainCameraTransform.position.z
+                );
+            Vector3 correctedRealWorld = new Vector3(RealWorld.x + WorldSystem.xMin, RealWorld.y + WorldSystem.yMin, MainCameraTransform.position.z);
+
+            return new Vector3(
+                Mathf.Clamp(correctedRealWorld.x, WorldSystem.xMin + (MainCameraBounds.width * 0.5f), WorldSystem.xMax - (MainCameraBounds.width * 0.5f)),
+                Mathf.Clamp(correctedRealWorld.y, WorldSystem.yMin + (MainCameraBounds.height * 0.5f), WorldSystem.yMax - (MainCameraBounds.height * 0.5f)),
+                correctedRealWorld.z);
+        }
+
+        public void test()
+        {
+            Debug.Log(worldPointToMinimap(new Vector2(-61,-61)));
+            Debug.Log(worldPointToMinimap(Vector2.zero));
+            Debug.Log(worldPointToMinimap(new Vector2(61, 61)));
+        }
+
+        public Vector2 worldPointToMinimap(Vector2 _ClickPosition)
+        {
+            Vector2 realWorldPercentage = new Vector2(
+                    Mathf.Abs(_ClickPosition.x - WorldSystem.xMin) / WorldSystem.width,
+                    Mathf.Abs(_ClickPosition.y - WorldSystem.yMin) / WorldSystem.height
+                    );
+            Vector2 minimapWorld = new Vector3(
+                MinimapSystem.width * realWorldPercentage.x,
+                MinimapSystem.height * realWorldPercentage.y
+                );
+
+            return minimapWorld;
+        }
         #endregion
 
         #region public
@@ -216,20 +270,27 @@ namespace minimap.rts.twod
                 }
             }
         }
-        protected void drag(PointerEventData eventData)
+        protected void drag(PointerEventData _PointerEventData)
         {
-            if (eventData != null && eventData.pointerCurrentRaycast.gameObject != null && eventData.pointerCurrentRaycast.gameObject.name == this.gameObject.name)
+            if (_PointerEventData != null && _PointerEventData.pointerCurrentRaycast.gameObject != null && _PointerEventData.pointerCurrentRaycast.gameObject.name == this.gameObject.name)
             {
-                handleLeftDrag(eventData);
-                handleRightDrag(eventData);
+                if (mouseDragDelegate != null) {
+                    mouseClickDelegate(_PointerEventData);
+                }
+                handleLeftDrag(_PointerEventData);
+                handleRightDrag(_PointerEventData);
             }
         }
-        protected void click(PointerEventData eventData)
+        protected void click(PointerEventData _PointerEventData)
         {
-            if (eventData != null && eventData.pointerCurrentRaycast.gameObject != null && eventData.pointerCurrentRaycast.gameObject.name == this.gameObject.name)
+            if (_PointerEventData != null && _PointerEventData.pointerCurrentRaycast.gameObject != null && _PointerEventData.pointerCurrentRaycast.gameObject.name == this.gameObject.name)
             {
-                handleLeftClick(eventData);
-                handleRightClick(eventData);
+                if (mouseDragDelegate != null)
+                {
+                    mouseClickDelegate(_PointerEventData);
+                }
+                handleLeftClick(_PointerEventData);
+                handleRightClick(_PointerEventData);
             }
         }
         protected void clearDragClickInput()
@@ -296,24 +357,7 @@ namespace minimap.rts.twod
         }
         protected void setMainCameraWithMinimapEvent(PointerEventData eventData)
         {
-            Vector2 localCursor;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(this.minimapRectTrans, eventData.position, eventData.pressEventCamera, out localCursor);
-
-            Vector2 UIPercentage = new Vector2(
-                    1 - Mathf.Abs(localCursor.x - MinimapSystem.xMin) / MinimapSystem.width,
-                    1 - Mathf.Abs(localCursor.y - MinimapSystem.yMin) / MinimapSystem.height
-                    );
-            Vector3 RealWorld = new Vector3(
-                WorldSystem.width * UIPercentage.x,
-                WorldSystem.height * UIPercentage.y,
-                MainCameraTransform.position.z
-                );
-            Vector3 correctedRealWorld = new Vector3(RealWorld.x + WorldSystem.xMin, RealWorld.y + WorldSystem.yMin, MainCameraTransform.position.z);
-
-            MainCameraTransform.position = new Vector3(
-                Mathf.Clamp(correctedRealWorld.x, WorldSystem.xMin + (MainCameraBounds.width * 0.5f), WorldSystem.xMax - (MainCameraBounds.width * 0.5f)),
-                Mathf.Clamp(correctedRealWorld.y, WorldSystem.yMin + (MainCameraBounds.height * 0.5f), WorldSystem.yMax - (MainCameraBounds.height * 0.5f)),
-                correctedRealWorld.z);
+            MainCameraTransform.position = minimapPointToWorld(eventData.position, eventData.pressEventCamera);
         }
         protected void UpdateMainCameraView()
         {
@@ -353,7 +397,7 @@ namespace minimap.rts.twod
             MinimapSystem.max = new Vector2(this.minimapRectTrans.anchoredPosition.x, this.minimapRectTrans.anchoredPosition.y);
             MinimapSystem.min = new Vector2(0, 0);
         }
-        void OnDrawGizmos()
+        void OnDrawGizmosSelected()
         {
             Handles.Label((Vector3)MainCameraBounds.center + (Vector3.left * 20f), "(" + xWorldPercentageMin + "/" + leftMargin + ")");
             Handles.Label((Vector3)MainCameraBounds.center + (Vector3.down * 20f), "(" + yWorldPercentageMin + "/" + bottomMargin + ")");
