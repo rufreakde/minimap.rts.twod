@@ -7,29 +7,16 @@ namespace minimap.rts.twod
 {
     public class MinimapPositionMarker : MonoBehaviour
     {
-        //send:
-        //icon unit type
-        //player controlled
-        //transform
-        public Minimap.MinimapObject UnitInfo;
+        public Color renderedColor = Color.red;
         protected Minimap MinimapScript;
+        // TODO this is temporary and should be on the unit class seems like I have to add a Players and Units Manager before finishing the color stuff!
+        public Minimap.MinimapObject UnitInfo; // okay also there is like local player shinanigance I have to think about here! So definetly first the new manager :)
 
-        public Color getMapTeamColor()
+        public void UpdateMinimapIconColor()
         {
-            return UnitInfo.TeamColor;
+
         }
-        public void setMapTeamColor(Color _Color)
-        {
-            UnitInfo.TeamColor = _Color;
-        }
-        public int getMapTeam()
-        {
-            return UnitInfo.Team;
-        }
-        public void setMapTeam(int _Team)
-        {
-            UnitInfo.Team = _Team;
-        }
+
         private void setIcon(Minimap.IconType _IconType)
         {
             GameObject prefab = MinimapScript.GetIcon(_IconType);
@@ -40,9 +27,10 @@ namespace minimap.rts.twod
             iconTrans.parent = markerTrans.transform;
             iconTrans.position = Vector3.zero;
             iconTrans.localPosition = Vector3.zero;
-            this.UnitInfo.ColorRenderer = iconTrans.FindChildRecursive("inside").GetComponentInChildren<SpriteRenderer>();
-            this.UnitInfo.ColorRenderer.color = getMapTeamColor();
-            this.UnitInfo.IconGO = temp;
+            UnitInfo.ColorRenderer = iconTrans.FindChildRecursive("inside").GetComponentInChildren<SpriteRenderer>();
+
+            UnitInfo.ColorRenderer.color = UnitInfo.getColorMinimapShown(MinimapScript, UnitInfo.Player, UnitInfo.Team);
+            UnitInfo.IconGO = temp;
         }
 
         void Start()

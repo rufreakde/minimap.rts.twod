@@ -31,6 +31,8 @@ namespace minimap.rts.twod
         public dragMinimapEvent mouseDragDelegate;
         public clickMinimapEvent mouseClickDelegate;
 
+        public MinimapSettings Settings;
+
         private Transform MainCameraTransform;
         private LineRenderer MiniMapViewRenderer;
         private Vector3[] ViewRenderCorners = new Vector3[4];
@@ -446,6 +448,21 @@ namespace minimap.rts.twod
             Ship
         }
 
+        public enum TeamColorMode
+        {
+            real,
+            friendAndFoe
+        }
+
+        [System.Serializable]
+        public class MinimapSettings
+        {
+            public TeamColorMode TeamColorMode = TeamColorMode.real;
+            public Color FriendColor = Color.cyan;
+            public Color FoeColor = Color.red;
+            public Color YourColor = Color.white;
+        }
+
         [System.Serializable]
         public class MinimapObject
         {
@@ -453,7 +470,28 @@ namespace minimap.rts.twod
             public IconType Icon = IconType.GroundUnit;
             public int Player = 1;
             public int Team = 1;
-            public Color TeamColor = Color.red;
+            public Color PlayerColor = Color.red;
+            public Color getColorMinimapShown(Minimap _MinimapObject, int _LocalPlayer, int _TeamOfLocalPlayer)
+            {
+                if(_MinimapObject.Settings.TeamColorMode == TeamColorMode.friendAndFoe)
+                {
+                    if( _LocalPlayer == Player)
+                    {
+                        return _MinimapObject.Settings.YourColor;
+                    }else if(_TeamOfLocalPlayer == Team)
+                    {
+                        return _MinimapObject.Settings.FriendColor;
+                    }
+                    else
+                    {
+                        return _MinimapObject.Settings.FoeColor;
+                    }
+                }
+                else
+                {
+                    return PlayerColor;
+                }
+            }
             public SpriteRenderer ColorRenderer = null;
         }
 
