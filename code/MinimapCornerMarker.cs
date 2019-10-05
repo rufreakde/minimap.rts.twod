@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using manager.ioc;
 
 namespace minimap.rts.twod
 {
@@ -19,7 +20,7 @@ namespace minimap.rts.twod
 
         void Awake()
         {
-            MinimapScript = GameObject.FindWithTag("MinimapCanvas").GetComponentInChildren<Minimap>();
+            MinimapScript = MANAGER.GET.GetSingleton<MinimapManager>().Minimap;
             UniqueID = System.Guid.NewGuid().ToString();
             if(NextPositionsOverTime.Count <= 0)
             {

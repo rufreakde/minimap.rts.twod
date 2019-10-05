@@ -135,7 +135,7 @@ namespace minimap.rts.twod
         }
         public void UpdateMinimapCamera()
         {
-            if (MinimapCamera)
+            if (MinimapCamera && MapCorners.Values.Count > 0)
             {
                 MinimapCamera.orthographicSize = getOptimalOrthographicCameraSize();
                 MinimapCamera.transform.position = calculatePseudoCentroid(MapCorners.Values.ToList().ToArray());
