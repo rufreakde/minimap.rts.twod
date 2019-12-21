@@ -202,11 +202,11 @@ namespace minimap.rts.twod
         {
             switch (_Type)
             {
-                case IconType.GroundUnit: { return UnitIcons.GroundUnit; break; }
-                case IconType.Building: { return UnitIcons.Building; break; }
-                case IconType.Aircraft: { return UnitIcons.Aircraft; break; }
-                case IconType.Ship: { return UnitIcons.Ship; break; }
-                default: { return UnitIcons.GroundUnit; break; }
+                case IconType.GroundUnit: { return UnitIcons.GroundUnit; }
+                case IconType.Building: { return UnitIcons.Building; }
+                case IconType.Aircraft: { return UnitIcons.Aircraft; }
+                case IconType.Ship: { return UnitIcons.Ship; }
+                default: { return UnitIcons.GroundUnit; }
             }
         }
         public void addCorner(string _UniqueID, MinimapCornerMarker _Marker)

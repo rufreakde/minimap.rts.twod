@@ -344,11 +344,11 @@ MonoBehaviour:
     Aircraft: {fileID: 4509671621438791879, guid: 94ee801948d0e2b4d8e100bff2f098d9,
       type: 3}
     Ship: {fileID: 4509671621438791879, guid: 07d6789dc422a7943913e32a317a26c4, type: 3}
+  ClampMainCameraToWorld: 1
+  ZoomDelta: 1
   MinimapPanelTransform: {fileID: 5485246830132431609}
   MinimapCamera: {fileID: 0}
   MainCamera: {fileID: 0}
-  ClampMainCameraToWorld: 1
-  ZoomDelta: 1
   MinimapSystem:
     serializedVersion: 2
     x: 0
@@ -361,3 +361,8 @@ MonoBehaviour:
     y: 0
     width: 0
     height: 0
+  Settings:
+    TeamColorMode: 0
+    FriendColor: {r: 0, g: 1, b: 1, a: 1}
+    FoeColor: {r: 1, g: 0, b: 0, a: 1}
+    YourColor: {r: 1, g: 1, b: 1, a: 1}

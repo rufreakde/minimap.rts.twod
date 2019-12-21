@@ -24,7 +24,7 @@ namespace minimap.rts.twod
             temp.name = "Minimap-icon";
             Transform iconTrans = temp.GetComponent<Transform>();
             Transform markerTrans = this.GetComponent<Transform>();
-            iconTrans.parent = markerTrans.transform;
+            iconTrans.SetParent(markerTrans.transform, false);
             iconTrans.position = Vector3.zero;
             iconTrans.localPosition = Vector3.zero;
             UnitInfo.ColorRenderer = iconTrans.FindChildRecursive("inside").GetComponentInChildren<SpriteRenderer>();
